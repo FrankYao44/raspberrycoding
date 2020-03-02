@@ -1,0 +1,3 @@
+mysql -uroot -p?
+connect MCV_database;
+insert into MCV_table (id, server_name, level, server_args, table_names) values ('test', 'test', 10, 'test_init,write_in,write_out','')
