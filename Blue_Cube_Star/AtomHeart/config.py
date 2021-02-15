@@ -4,6 +4,7 @@ import os
 
 
 configs = {
+    'IP': 'http://169.254.189.106:9000/atomheart',
     'picture': {
         'picture_name_fn': lambda: '%015d%s000' % (int(time.time() * 1000), uuid.uuid4().hex),
         'picture_address': os.path.join(os.path.abspath('.'), 'resource'),

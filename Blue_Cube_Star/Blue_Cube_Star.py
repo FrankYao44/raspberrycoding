@@ -9,11 +9,11 @@ import orm
 from haddler import add_routes
 from functools import reduce
 from cyberkernel import Cyberkernel
-from some_useful_func import str_in_iterable_turns_into_tuple_factory
+from some_useful_func import str_in_iterable_turns_into_tuple_factory, thread_creator
 from config import configs
 
 
-class Sentinel(object):
+class MCV(object):
 
     def dir_server(self, table_name='MCV_table'):
         self.cursor.execute('select server_name, level, server_args, table_names, addition from %s' % table_name)
@@ -49,7 +49,7 @@ class Sentinel(object):
         self.loop.run_until_complete(self.__create__())
 
 
-s = Sentinel(asyncio.get_event_loop())
+s = MCV(asyncio.get_event_loop())
 s.creator()
 print('Battle control online')
 s.listener()

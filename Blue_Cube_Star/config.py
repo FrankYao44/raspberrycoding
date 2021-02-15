@@ -4,5 +4,9 @@ configs = {
         'port': 3306,
         'user': 'MCV',
         'password': 'raspberrypi'
+    },
+    'cb': {
+        'IP': '0.0.0.0',
+        'post': 9000
     }
     }

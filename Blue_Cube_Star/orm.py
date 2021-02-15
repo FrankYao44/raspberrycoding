@@ -1,8 +1,8 @@
 #!/usr/bin python3
 # -*- coding: utf-8 -*-
 __level__ = 2
-import asyncio
 import aiomysql
+import aiofiles
 import logging
 from orm_field import Field
 
@@ -93,6 +93,9 @@ class ModelMetaclass(type):
         if not primaryKey:
             raise Exception('Primary key not found.')
         for k in mappings.keys():
+
+                fields.pop(k)
+
             attrs.pop(k)
         escaped_fields = list(map(lambda f: '`%s`' % f, fields))
         attrs['__mappings__'] = mappings
@@ -100,6 +103,7 @@ class ModelMetaclass(type):
         attrs['table_name'] = table_name
         attrs['__primary_key__'] = primaryKey
         attrs['__fields__'] = fields
+
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ', '.join(escaped_fields), table_name)
         attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % \
                               (table_name, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields)
@@ -203,3 +207,15 @@ class Model(dict, metaclass=ModelMetaclass):
         rows = await execute(self.__delete__, args, self.db)
         if rows != 1:
             return 'failed to remove by primary key: affected rows: %s' % rows
+
+    async def save_file(self, info):
+        async with aiofiles.open(info.name, mode='a') as f:
+            try :
+                await f.write(info.content)
+            except Exception as e:
+                return e
+        args = list(map(self.getValueOrDefault, self.__fields__))
+        args.append(self.getValueOrDefault(self.__primary_key__))
+        rows = await execute(self.__insert__, args, self.db)
+        if rows != 1:
+            return 'failed to insert record: affected rows: %s' % rows

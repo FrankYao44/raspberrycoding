@@ -1,6 +1,7 @@
 #!/usr/bin python3
 # -*- coding: utf-8 -*-
 from aiohttp import web
+from config import configs
 
 
 async def logger_factory(app, handler):
@@ -43,7 +44,7 @@ class Cyberkernel(web.Application):
         return super().__init__(loop=loop, middlewares=middlewares)
 
     async def cyber_kernel_online(self):
-        srv = await self.loop.create_server(self.make_handler(), '127.0.0.1', 9000)
+        srv = await self.loop.create_server(self.make_handler(), configs['cb']['IP'], configs['cb']['post'])
         return srv
 
     def addition(self):

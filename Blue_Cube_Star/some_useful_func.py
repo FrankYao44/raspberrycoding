@@ -3,6 +3,7 @@
 import functools
 import time
 import uuid
+from threading import Thread
 
 
 def decorator_builder(*addition_key):
@@ -25,6 +26,24 @@ def decorator_builder(*addition_key):
 def next_id():
 	return '%015d%s000' % (int(time.time() * 1000), uuid.uuid4().hex)
 
+
+def thread_creator(fn):
+	class ThreadCreator(Thread):
+		def __init__(self, func, name=''):
+			Thread.__init__(self)
+			self.name = name
+			self.func = func
+			self.result = self.func()
+
+		def get_result(self):
+			try:
+				return self.result
+			except Exception as e:
+				return e
+
+	thread_01 = ThreadCreator(func=fn)
+	thread_01.start()
+	return thread_01.get_result()
 
 def str_in_iterable_turns_into_tuple_factory(iterable, address):
 	# expect a dict {a:{x:1,y:2,z:3},b:{...},c:{...}}
@@ -55,6 +74,8 @@ def str_in_iterable_turns_into_tuple_factory(iterable, address):
 		iterable[keys] = values
 
 	return iterable
+
+
 
 
 if __name__ == '__main__':

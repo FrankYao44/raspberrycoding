@@ -16,11 +16,11 @@ from config import configs
 try:
     from take_picture import take_picture
 except ModuleNotFoundError:
-    take_picture = configs['picture']['picture_index']
+    take_picture = lambda: configs['picture']['picture_index']
 
 
 PATH = os.path.abspath('.')
-_IP = 'http://127.0.0.1:9000/atomheart'
+_IP = configs['IP']
 _BPS = {}
 
 
@@ -48,18 +48,22 @@ def connector(method, **kw):
         return thread_01.get_result()
     if method == 'in' or method == 'update':
         rs = threader(lambda: requests.post(ip, kw))
-        return rs
     elif method == 'out':
         if list(kw.keys()) == ['subject']:
-            return threader((lambda: requests.get(ip+'/all/all')))
-        ip = ip + '/%s/%s' % (list(kw.keys())[1], list(kw.values())[1])
-        return threader((lambda: requests.get(ip)))
+            rs = threader((lambda: requests.get(ip+'/all/all')))
+        else:
+            ip = ip + '/%s/%s' % (list(kw.keys())[1], list(kw.values())[1])
+            rs = threader((lambda: requests.get(ip)))
     elif method == 'del':
         ip = ip + '/%s' % kw['id']
-        return threader(lambda: requests.get(ip))
+        rs = threader(lambda: requests.get(ip))
+    else:
+        raise KeyError
+    return rs
 
 
 class ReactFunc(object):
+
     def go_blank(self):
         self.belong_to.setText('')
         self.check_box_D.setCheckState(0)
@@ -67,8 +71,13 @@ class ReactFunc(object):
         self.check_box_B.setCheckState(0)
         self.check_box_A.setCheckState(0)
         self.text.setPlainText('')
+        self.status.setText('')
         self.addition.setPlainText('')
         self.picture.setPixmap(self.pix_index)
+        self.present_result = {'belong_to': '', 'level': 0,
+                               'text': '', 'addition': ''}
+        self.present_id = None
+        self.image_address = None
 
     def check_change(self):
         try:
@@ -78,7 +87,7 @@ class ReactFunc(object):
                 return
             if self.present_result != {'belong_to': self.belong_to.text(), 'level': self.level_number, 'text': self.text.toPlainText(), 'addition': self.addition.toPlainText()}:
                 a = self.warn_event('warning', 'are you sure to exit without save')
-                if a == False:
+                if not a:
                     try:
                         self.upd()
                     except Exception as e:
@@ -109,17 +118,16 @@ class ReactFunc(object):
             else:
                 self.num = 0
                 self.load_result[0]()
-    def key_killer(self):
-        self.present_id = -1
-        self.load_result = -1
-        self.num = -1
+
 
     def save(self):
         try:
             rs = connector('in', subject=self.subject, belong_to=self.belong_to.text(),
                            level=self.level_number, text=self.text.toPlainText(),
                            addition=self.addition.toPlainText(), image_address=self.image_address)
-            if rs.text != None:
+            if rs.text == '404: Not Found' or rs.text is None or rs.text == 'wrong input':
+                self.status.setText('Warning: Wrong Connection')
+            else:
                 self.status.setText('have saved')
         except Exception as e:
             print(e)
@@ -129,26 +137,41 @@ class ReactFunc(object):
             rs = connector('update', subject=self.subject, id=self.present_id, belong_to=self.belong_to.text(),
                            level=self.level_number, text=self.text.toPlainText(),
                            addition=self.addition.toPlainText(), image_address=self.image_address)
-            if rs.text != None:
-                self.status.setText('have updated')
+            self.present_result = {'belong_to': self.belong_to.text(), 'level': self.level_number,
+                                   'text': self.text.toPlainText(),
+                                   'addition': self.addition.toPlainText()}
+            if rs.text == '404: Not Found' or rs.text is None or rs.text == 'wrong input':
+                self.status.setText('Warning: Wrong Connection')
+            else:
+                self.status.setText('have update')
+            self.load_function(*self.present_search)
         except Exception as e:
             print(e)
 
     def dele(self):
         if self.warn_event('warning', 'are you sure to delete it?'):
             rs = connector('del', subject=self.subject, id=self.present_id)
-
-            if rs.text != None:
-                self.status.setText('have deleted')
+            if rs.text == '404: Not Found' or rs.text is None or rs.text == 'wrong input':
+                self.status.setText('Warning: Wrong Connection')
+            else:
+                self.status.setText('have delete')
+            self.load_function(*self.present_search)
 
     def load_function(self, title, text, where):
         self.check_change()
+        self.present_search = (title, text, where)
         result, ok = QInputDialog.getText(self, title, text)
+        if result == '' and where != 'all':
+            return
         if ok:
             if where == 'all':
                 rs = connector('out', subject=self.subject)
             else:
                 rs = connector('out', subject=self.subject, **{where: result})
+            if rs.text == '404: Not Found' or rs.text is None or rs.text == 'wrong input':
+                self.status.setText('Warning: Wrong Connection')
+            else:
+                self.status.setText('loading')
             if rs.text == '[]':
                 self.status.setText('nothing found like %s = %s' % (where, result))
                 return
@@ -200,6 +223,9 @@ class ReactFunc(object):
         self.picture.resize(100, 100)
         self.picture.setPixmap(QPixmap(rs))
 
+    def check_close(self):
+        self.check_change()
+        self.exit()
 
 class ModelClass(object):
     def _height_and_weight(self, i, j):
@@ -271,6 +297,11 @@ class ModelClass(object):
             return True
         else:
             return False
+
+    def exit(self):
+        rs = self.warn_event('exit', 'Are you sure to exit?')
+        if rs:
+            self.close()
 
     def init_check_box(self, name, fn, height, weight, grid= None):
         cb = QCheckBox(name, self)
@@ -361,6 +392,7 @@ class App(QWidget, ModelClass, ReactFunc):
         self.init_button('take_picture', 'take_picture', 0, 0.55, fn=self.get_picture, shortcut='Alt+T')
         self.init_button('last', 'last result', 0, 0.65, fn=lambda: self.choose_load_result(-1), shortcut='Alt+UP')
         self.init_button('next', 'next result', 0, 0.75, fn=lambda: self.choose_load_result(1), shortcut='Alt+DOWN')
+        self.init_button('quit', 'quit', 0, 0.99, fn=self.check_close, shortcut='Alt+Shift+q')
         try:
             self.pix_index = QPixmap(configs['picture']['picture_index'])
             self.picture = QLabel(self)
@@ -423,22 +455,22 @@ class Base(BaseClass):
                                    'Alt+5', 'Chemistry_normal',
                                    lambda: self.slot_btn_function(App('Chemistry_normal')),
                                    file_menu, )
+        Biology_command = \
+            self.init_main_central('open_Biology',
+                                   configs['ico']['ico_index'],
+                                   'Alt+6', 'Biology',
+                                   lambda: self.slot_btn_function(App('Biology')),
+                                   file_menu, )
         Chemistry_competition_command = \
             self.init_main_central('open_chemistry_competition',
                                    configs['ico']['ico_index'],
                                    'Alt+9', 'Chemistry_competition',
                                    lambda: self.slot_btn_function(App('Chemistry_competition')),
                                    file_menu, )
-        Biology_command = \
-            self.init_main_central('open_Biology',
-                                   configs['ico']['ico_index'],
-                                   'Alt+0', 'Biology',
-                                   lambda: self.slot_btn_function(App('Biology')),
-                                   file_menu, )
         Others_command = \
             self.init_main_central('open_Others',
                                    configs['ico']['ico_index'],
-                                   'Alt+7', 'Others',
+                                   'Alt+0', 'Others',
                                    lambda: self.slot_btn_function(App('Others')),
                                    file_menu, )
         # tool
@@ -448,8 +480,8 @@ class Base(BaseClass):
         self.init_tool('English', English_command)
         self.init_tool('Physics', Physics_command)
         self.init_tool('Chemistry_normal', Chemistry_normal_command)
-        self.init_tool('Chemistry_competition', Chemistry_competition_command)
         self.init_tool('Biology', Biology_command)
+        self.init_tool('Chemistry_competition', Chemistry_competition_command)
         self.init_tool('Others', Others_command)
         # and show now
         self.init_frame('AtomHeart', configs['ico']['ico_index'], 'Base', 1, 1, 0, 0)
