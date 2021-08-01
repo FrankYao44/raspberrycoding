@@ -4,17 +4,15 @@ __level__ = 2
 import asyncio
 import aiomysql
 import logging
-from orm_field import Field
+from Cloudpiercer.orm_field import Field
 
 
 async def create_pool(loop, **kw):
     logging.info('new connection pool')
+    if '__pool' not in globals().keys():
+        pool = dict()
+        globals()['__pool'] = pool
     global __pool
-    try:
-        __pool
-    except Exception:
-        __pool = dict()
-
     __pool.setdefault(kw['db'], await aiomysql.create_pool(
         host=kw.get('host', 'localhost'),
         port=kw.get('port', 3306),
@@ -84,7 +82,6 @@ class ModelMetaclass(type):
                 logging.info('  found mapping: %s ==> %s' % (k, v))
                 mappings[k] = v
                 if v.primary_key:
-                    # 找到主键:
                     if primaryKey:
                         raise Exception('Duplicate primary key for field: %s' % k)
                     primaryKey = k

@@ -1,0 +1,155 @@
+import os
+import asyncio
+from multiprocessing import Pool, Process, freeze_support
+import aiohttp
+import hashlib
+from lxml import etree
+
+
+class RequestType(object):
+
+    def __init__(self, url, info_type, cookie=None, header=None, ssl=False, sem_number=4):
+
+        self.url = url
+        self.info_type = info_type
+        self.cookie = cookie
+        self.header = header
+        self.ssl = ssl
+        self.SEM = asyncio.Semaphore(sem_number)
+
+    async def aio_get_response(self):
+        async with self.SEM:
+            async with aiohttp.ClientSession() as session:
+                i = 1
+                while i:
+                    i = 0
+                    try:
+                        async with session.request('GET',
+                                                   self.url,
+                                                   cookies=self.cookie,
+                                                   timeout=5,
+                                                   headers=self.header) as resp:
+                            resp.encoding = 'utf-8'
+                            if self.info_type == 'html':
+                                self.result = (await resp.read()).decode()
+                            else:
+                                self.result = await resp.read()
+                    except Exception:
+                        print('time_out!')
+                        i=1
+
+# maybe keywords can be a class?
+async def check(main_url, request, keywords):
+    j = None
+    prey_list = []
+    async with request:
+        async for k in request:
+            if j is None:
+                j = k
+                i = j
+                continue
+            i = j
+            j = k
+            m = (i + j).decode('unicode_escape')
+            if not (False in [b in m for b in keywords]):
+
+                url = main_url + m[m.find(keywords[0]):m[m.find(keywords[0]):].find(keywords[-1])]
+                if url[-1] == '\"' or '\'':
+                    print(url, m, [b in m for b in keywords])
+                prey_list.append(url)
+    return prey_list
+        def __a(self):
+            del self.result
+
+
+class Searcher(object):
+
+    @classmethod
+    async def download_method_default(cls, url, label):
+        R = RequestType(url, label)
+
+        await R.aio_get_response()
+        html = etree.HTML(R.result)
+        [await Downloader(RequestType(url, 'img'), 'F:\\2').download() for url in list(map(lambda a: a.attrib['src'],
+                                                                       list(html.xpath('//%s' % label) )))]
+
+    @classmethod
+    async def seek_method_default(cls, url, label):
+        R = RequestType(url, label)
+        await R.aio_get_response()
+        text =R.result
+        #####
+        #####
+        a = text.rfind('https://www.assdrty.com/explore/trending/?page')
+        b = text[a:].find('\"')
+        url = text[a:a+b]
+        await Searcher.download_method_default(url, 'img')
+        await cls.seek_method_default(url, label)
+
+
+    def __init__(self, main_url, method=None):
+        self.main_url = main_url
+        if method:
+            self.method = method
+        else:
+            self.method = Searcher.download_method_default
+
+    async def seek_and_download(self):
+        #
+        #
+        y = await Searcher.seek_method_default('https://www.assdrty.com/explore/trending', 'html')
+
+
+class WriteInFile(Process):
+
+    def __init__(self, filename, path, bit):
+        self.filename = filename
+        self.path = path
+        self.bit = bit
+        super().__init__()
+
+    def run(self):
+        with open(os.path.join(self.path, self.filename), 'ab') as file:
+            file.write(self.bit)
+        print('file %s has downloaded'% self.filename)
+
+
+class Downloader(object):
+
+    def __init__(self, request, path):
+        #if isinstance(request, RequestType):
+        #    raise ValueError('unavailable request type ')
+        h1 = hashlib.md5()
+        h1.update(request.url.encode(encoding='utf-8'))
+        name = h1.hexdigest() + '.' + request.url[request.url.rfind('.') + 1:]
+        self.request = request
+        self.path = path
+        self.name = name
+
+    async def download(self):
+        await self.request.aio_get_response()
+        P = WriteInFile(self.name, self.path, self.request.result)
+        try:
+            P.start()
+        except Exception as e:
+            print(e)
+
+async def main(main_url, first_page, page_keywords, prey_keywords, path, prey_type=None):
+    prey_html_url = await check(main_url, RequestType(first_page, 'html'))
+    next_page_url = await check(main_url, RequestType(first_page, '?'), prey_keywords)
+    for url in prey_url:
+        await download(RequestType(url, prey_type), path, prey_type)
+
+if __name__=='__main__':
+    s=Searcher(0)
+    freeze_support()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(s.seek_and_download())
+        i = 1
+        while i:
+            try:
+                i=0
+                r = (await request.resp.read()).decode()
+            except Exception:
+                i=1
+                print(request.url)

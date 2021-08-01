@@ -2,27 +2,16 @@
 # -*- coding: utf-8 -*-
 import functools
 import json
-from Cloudpiercer.some_useful_func import decorator_builder, next_id, password
+from some_useful_func import decorator_builder, next_id, password
 from Cloudpiercer.orm import Model
 from Cloudpiercer.orm_field import *
 import time
 atom_heart_decorator = decorator_builder('url')
-_MCV_build_in_args = {}
 _atom_heart_model_db_dict = {}
 
 
-def subject_detective(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kw):
-        global _MCV_build_in_args
-        if kw['subject'] not in _MCV_build_in_args['table_names']:
-            return 'wrong input'
-        return func(*args, **kw)
-    return wrapper
-
-
 def _atom_heart_model_creator(subject):
-    return type('AtomHeart', (Model, ),
+    return type('atomheart', (Model, ),
                 dict(table_name=subject,
                      id=StringField(primary_key=True, default=next_id, ddl='varchar(400)'),
                      text=StringField(ddl='text(65535)'),
@@ -32,30 +21,12 @@ def _atom_heart_model_creator(subject):
                      addition=StringField(ddl='text(65535)')))
 
 
-class ExpandSelfModel(Model):
-    table_name = 'Atomheart'
-    id = StringField(primary_key=True, default=next_id, ddl='varchar(400)')
-    time = IntegerField()
-    log_info = StringField(ddl='varchar(2000)')
-
-
-def _interface(mcv_build_in_args):
-    global _MCV_build_in_args
-    _MCV_build_in_args = mcv_build_in_args
-    global _atom_heart_model_db_dict
-    _atom_heart_model_db_dict = dict(zip(mcv_build_in_args['table_names'],
-                                         map(_atom_heart_model_creator, mcv_build_in_args['table_names'])))
-    _atom_heart_model_db_dict['main'] = ExpandSelfModel
-
-
-@subject_detective
 @atom_heart_decorator(method='get', url='/atomheart/visitor/{subject}')
 async def atom_heart_init(subject):
     print('this is a test module of %s' % subject)
     return 'test'
 
 
-@subject_detective
 @atom_heart_decorator(method='post', url='/atomheart/in/{subject}')
 async def save(subject, text, level, belong_to, image_address=None, addition=None):
     global _atom_heart_model_db_dict
@@ -65,7 +36,6 @@ async def save(subject, text, level, belong_to, image_address=None, addition=Non
     return rs
 
 
-@subject_detective
 @atom_heart_decorator(method='get', url='/atomheart/out/{subject}/{key}/{args}')
 async def find(subject, key, args):
     rs = _atom_heart_model_db_dict[subject]()
@@ -76,7 +46,6 @@ async def find(subject, key, args):
     return json.dumps(rs)
 
 
-@subject_detective
 @atom_heart_decorator(method='get', url='/atomheart/del/{subject}/{id}')
 async def delete(subject, data_id):
     rs = _atom_heart_model_db_dict[subject](id=data_id)
@@ -84,7 +53,6 @@ async def delete(subject, data_id):
     return rs
 
 
-@subject_detective
 @atom_heart_decorator(method='post', url='/atomheart/update/{subject}')
 async def update(subject, data_id, **kw):
     rs = _atom_heart_model_db_dict[subject](id=data_id, **kw)
@@ -92,18 +60,35 @@ async def update(subject, data_id, **kw):
     return rs
 
 
-@subject_detective
-@atom_heart_decorator(method='get', url='/atomheart/init/{password}', )
+@atom_heart_decorator(method='get', url='/atomheart/init/{pw}', )
 async def init(pw):
+    class atomheart(Model):
+        table_name = 'Atomheart'
+        id = StringField(primary_key=True, default=next_id, ddl='varchar(400)')
+        time = IntegerField()
+        log_info = StringField(ddl='varchar(2000)')
     # here, you have to check the url of applicant
     # check the pw
-    pw_n = password(time.time)
+    pw = pw.split(',')
+    pw_n = password(time.time())
     if len(set(pw + pw_n)) == 4:
         return Exception
     elif len(set(pw + pw_n)) == 3:
         print('great')
     result = {}
+    global _atom_heart_model_db_dict
+    _atom_heart_model_db_dict = dict()
+    _atom_heart_model_db_dict['main'] = atomheart
+    main = atomheart()
+    result_list = await main.findAll()
+    subject_list = result_list[-1]['log_info'].split(',')
+    _atom_heart_model_db_dict.update(dict(zip(subject_list,
+                                              map(_atom_heart_model_creator, subject_list))))
     for fn in globals().values():
+        if not callable(fn):
+            continue
+        if not getattr(fn, 'url', None):
+            continue
         result[fn.__name__] = {'fn': fn,
                                'url': fn.url,
                                'pk_input': fn.position_or_keyword_input,
@@ -111,5 +96,6 @@ async def init(pw):
                                'args': fn.args,
                                'kw': fn.kwargs}
         # get every writen functions' fn, name, url, params
-    await _atom_heart_model_db_dict['main'](time=time.time(), log_info='inited by sth')
+    result = _atom_heart_model_db_dict['main'](time=time.time(), log_info='inited by sth')
+    result = await result.save()
     return result
